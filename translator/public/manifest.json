@@ -1,6 +1,6 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
+  "short_name": "Document Translator",
+  "name": "Document Translator - Translate DOCX, PDF, and TXT files",
   "icons": [
     {
       "src": "favicon.ico",
