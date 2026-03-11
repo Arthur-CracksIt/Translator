@@ -1,124 +1,510 @@
 import { useState, useEffect, useRef } from "react";
 
 const STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:ital,wght@0,300;0,400;1,300&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@300;400;500&display=swap');
+
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
   :root {
-    --bg: #0a0a0f; --surface: #12121a; --surface2: #1a1a26;
-    --border: #2a2a3d; --accent: #7c6af7; --accent2: #f76a8a;
-    --accent3: #6af7d4; --text: #e8e8f0; --muted: #7070a0;
-    --mono: 'DM Mono', monospace; --sans: 'Syne', sans-serif;
+    --bg: #f4f3f0;
+    --surface: #ffffff;
+    --surface2: #f9f8f6;
+    --border: #e2e0db;
+    --border-strong: #c8c5be;
+    --accent: #1a1a1a;
+    --accent-muted: #4a4a4a;
+    --accent-light: #e8e6e1;
+    --highlight: #2563eb;
+    --highlight-muted: #dbeafe;
+    --danger: #dc2626;
+    --danger-muted: #fef2f2;
+    --success: #16a34a;
+    --success-muted: #f0fdf4;
+    --warning: #d97706;
+    --text: #1a1a1a;
+    --text-muted: #6b6b6b;
+    --text-light: #9a9a9a;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+    --radius: 4px;
+    --radius-lg: 8px;
   }
-  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
   .app {
-    min-height: 100vh; background: var(--bg);
-    background-image:
-      radial-gradient(ellipse 80% 50% at 20% -10%, rgba(124,106,247,0.15) 0%, transparent 60%),
-      radial-gradient(ellipse 60% 40% at 80% 110%, rgba(247,106,138,0.10) 0%, transparent 60%);
-    padding: 48px 24px; display: flex; flex-direction: column; align-items: center; gap: 32px;
+    min-height: 100vh;
+    padding: 40px 24px 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
   }
-  .header { text-align: center; }
-  .header-tag { font-family: var(--mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--accent3); margin-bottom: 16px; display: block; }
-  .header h1 { font-size: clamp(2.2rem, 5vw, 3.5rem); font-weight: 800; line-height: 1.05; letter-spacing: -0.03em; background: linear-gradient(135deg, var(--text) 30%, var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-  .header p { margin-top: 12px; color: var(--muted); font-size: 15px; }
-  .backend-box { width: 100%; max-width: 760px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 18px 24px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-  .backend-box .blabel { font-family: var(--mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.12em; white-space: nowrap; }
-  .backend-box input { flex: 1; min-width: 180px; background: var(--surface2); border: 1px solid var(--border); border-radius: 9px; padding: 9px 13px; font-family: var(--mono); font-size: 12px; color: var(--text); outline: none; transition: border-color 0.15s; }
-  .backend-box input:focus { border-color: var(--accent); }
-  .status-chip { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; white-space: nowrap; }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); transition: all 0.3s; flex-shrink: 0; }
-  .dot.online { background: var(--accent3); box-shadow: 0 0 7px var(--accent3); }
-  .dot.offline { background: var(--accent2); box-shadow: 0 0 7px var(--accent2); }
-  .dot.checking { animation: pulse 1s infinite; }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; width: 100%; max-width: 760px; overflow: hidden; }
-  .card-section { padding: 26px 32px; border-bottom: 1px solid var(--border); }
-  .card-section:last-child { border-bottom: none; }
-  .section-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
-  .upload-box { border: 1.5px dashed var(--border); border-radius: 14px; padding: 32px 24px; text-align: center; transition: border-color 0.2s, background 0.2s; }
-  .upload-box.drag-over { border-color: var(--accent); background: rgba(124,106,247,0.05); }
-  .upload-icon { font-size: 36px; margin-bottom: 10px; display: block; }
-  .upload-box h3 { font-size: 15px; font-weight: 600; margin-bottom: 5px; }
-  .upload-box .hint { font-size: 12px; color: var(--muted); font-family: var(--mono); margin-bottom: 18px; }
-  .file-pick-label { display: inline-block; padding: 11px 28px; border-radius: 10px; background: rgba(124,106,247,0.15); border: 1px solid var(--accent); color: var(--accent); font-family: var(--mono); font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
-  .file-pick-label:hover { background: rgba(124,106,247,0.28); }
-  .file-pick-label input[type="file"] { display: none; }
-  .file-badge { display: inline-flex; align-items: center; gap: 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 9px 14px; font-size: 13px; font-family: var(--mono); margin-top: 14px; }
-  .file-badge .ext { background: var(--accent); color: white; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 700; }
-  .file-badge .rm { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 17px; margin-left: 2px; padding: 0; line-height: 1; }
-  .file-badge .rm:hover { color: var(--accent2); }
-  .lang-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(138px, 1fr)); gap: 8px; }
-  .lang-btn { padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface2); color: var(--muted); font-family: var(--mono); font-size: 12px; cursor: pointer; transition: all 0.15s; text-align: left; }
-  .lang-btn:hover { border-color: var(--accent); color: var(--text); }
-  .lang-btn.selected { border-color: var(--accent); background: rgba(124,106,247,0.15); color: var(--accent); }
-  .translate-btn { width: 100%; padding: 15px; border-radius: 14px; border: none; background: linear-gradient(135deg, var(--accent), #a06af7); color: white; font-family: var(--sans); font-size: 16px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
-  .translate-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(124,106,247,0.4); }
-  .translate-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
-  .progress-wrap { height: 3px; background: var(--surface2); border-radius: 99px; overflow: hidden; margin-top: 14px; }
-  .progress-bar { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent3)); border-radius: 99px; transition: width 0.35s ease; }
-  .status-txt { font-family: var(--mono); font-size: 12px; color: var(--accent3); margin-top: 7px; text-align: center; }
-  .result-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
-  .result-meta { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
-  .badge { font-family: var(--mono); font-size: 10px; padding: 3px 8px; border-radius: 6px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
-  .badge-det { background: rgba(106,247,212,0.15); color: var(--accent3); }
-  .badge-lang { background: rgba(124,106,247,0.15); color: var(--accent); }
-  .badge-deepl { background: rgba(106,247,212,0.12); color: var(--accent3); border: 1px solid rgba(106,247,212,0.2); }
-  .result-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-  .action-btn { padding: 7px 15px; border-radius: 9px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-family: var(--mono); font-size: 11px; cursor: pointer; transition: all 0.15s; }
-  .action-btn:hover { border-color: var(--accent); color: var(--accent); }
-  .action-btn.primary { background: rgba(124,106,247,0.15); border-color: var(--accent); color: var(--accent); }
-  .download-grid { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
-  .dl-btn { flex: 1; min-width: 100px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface2); color: var(--muted); font-family: var(--mono); font-size: 11px; cursor: pointer; transition: all 0.15s; text-align: center; }
-  .dl-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(124,106,247,0.08); }
-  .dl-btn .dl-icon { font-size: 18px; display: block; margin-bottom: 4px; }
-  .dl-btn .dl-label { display: block; font-weight: 600; letter-spacing: 0.06em; }
-  .result-box { background: var(--surface2); border: 1px solid var(--border); border-radius: 13px; padding: 22px; font-size: 14px; line-height: 1.8; color: var(--text); white-space: pre-wrap; max-height: 480px; overflow-y: auto; font-family: var(--mono); font-weight: 300; }
-  .result-box::-webkit-scrollbar { width: 5px; }
-  .result-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
-  .error-box { background: rgba(247,106,138,0.07); border: 1px solid rgba(247,106,138,0.28); border-radius: 13px; padding: 15px 18px; color: var(--accent2); font-family: var(--mono); font-size: 13px; line-height: 1.6; }
-  .hint-box { background: rgba(124,106,247,0.06); border: 1px solid rgba(124,106,247,0.2); border-radius: 13px; padding: 15px 18px; font-family: var(--mono); font-size: 12px; color: var(--muted); line-height: 1.7; }
-  .hint-box code { color: var(--accent3); background: rgba(106,247,212,0.08); padding: 1px 5px; border-radius: 4px; }
-  .hint-box strong { color: var(--text); }
+
+  /* Header */
+  .header {
+    width: 100%;
+    max-width: 720px;
+    padding-bottom: 32px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 32px;
+  }
+  .header-eyebrow {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-light);
+    margin-bottom: 10px;
+  }
+  .header h1 {
+    font-size: 26px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    line-height: 1.2;
+  }
+  .header p {
+    margin-top: 6px;
+    color: var(--text-muted);
+    font-size: 14px;
+    font-weight: 300;
+  }
+
+  /* Sections */
+  .section {
+    width: 100%;
+    max-width: 720px;
+    margin-bottom: 24px;
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .section-num {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-light);
+    letter-spacing: 0.1em;
+    min-width: 24px;
+  }
+  .section-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-muted);
+  }
+
+  /* Backend row */
+  .backend-row {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .backend-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+  }
+  .backend-input {
+    flex: 1;
+    min-width: 200px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 7px 10px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .backend-input:focus { border-color: var(--highlight); }
+  .status-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  .status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--border-strong);
+    flex-shrink: 0;
+    transition: all 0.3s;
+  }
+  .status-dot.online { background: var(--success); box-shadow: 0 0 0 2px var(--success-muted); }
+  .status-dot.offline { background: var(--danger); box-shadow: 0 0 0 2px var(--danger-muted); }
+  .status-dot.checking { animation: blink 1.2s infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* Offline notice */
+  .notice {
+    background: var(--danger-muted);
+    border: 1px solid #fca5a5;
+    border-radius: var(--radius-lg);
+    padding: 12px 16px;
+    font-size: 13px;
+    color: var(--danger);
+    margin-top: 8px;
+  }
+  .notice code {
+    font-family: var(--mono);
+    font-size: 12px;
+    background: rgba(220,38,38,0.08);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  /* Upload zone */
+  .upload-zone {
+    background: var(--surface);
+    border: 1.5px dashed var(--border-strong);
+    border-radius: var(--radius-lg);
+    padding: 40px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--highlight);
+    background: var(--highlight-muted);
+  }
+  .upload-zone-icon {
+    width: 40px; height: 40px;
+    margin: 0 auto 14px;
+    border: 1.5px solid var(--border-strong);
+    border-radius: var(--radius);
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface2);
+  }
+  .upload-zone-icon svg { width: 20px; height: 20px; stroke: var(--text-muted); fill: none; stroke-width: 1.5; }
+  .upload-zone h3 { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+  .upload-zone p { font-size: 12px; color: var(--text-light); font-family: var(--mono); margin-bottom: 16px; }
+  .upload-btn {
+    display: inline-block;
+    padding: 8px 20px;
+    border-radius: var(--radius);
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: #fff;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .upload-btn:hover { background: var(--accent-muted); border-color: var(--accent-muted); }
+  .upload-btn input[type="file"] { display: none; }
+
+  /* File badge */
+  .file-badge {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    font-family: var(--mono);
+    font-size: 12px;
+    margin-top: 12px;
+  }
+  .file-ext {
+    background: var(--accent);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 600;
+    padding: 2px 5px;
+    border-radius: 2px;
+    letter-spacing: 0.05em;
+  }
+  .file-name { flex: 1; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-rm {
+    background: none; border: none;
+    color: var(--text-light);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0; line-height: 1;
+    transition: color 0.15s;
+  }
+  .file-rm:hover { color: var(--danger); }
+
+  /* Language grid */
+  .lang-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 6px;
+  }
+  .lang-btn {
+    padding: 8px 12px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-muted);
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 400;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+  }
+  .lang-btn:hover { border-color: var(--highlight); color: var(--text); }
+  .lang-btn.selected {
+    border-color: var(--highlight);
+    background: var(--highlight-muted);
+    color: var(--highlight);
+    font-weight: 500;
+  }
+
+  /* Translate button */
+  .translate-btn {
+    width: 100%;
+    padding: 12px;
+    border-radius: var(--radius);
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.01em;
+  }
+  .translate-btn:hover:not(:disabled) { background: var(--accent-muted); }
+  .translate-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Progress */
+  .progress-track {
+    height: 2px;
+    background: var(--border);
+    border-radius: 99px;
+    overflow: hidden;
+    margin-top: 12px;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--highlight);
+    border-radius: 99px;
+    transition: width 0.35s ease;
+  }
+  .progress-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-light);
+    margin-top: 6px;
+    text-align: center;
+  }
+
+  /* Result */
+  .result-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+  .result-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .result-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    padding: 2px 7px;
+    border-radius: 2px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .tag-detected { background: var(--success-muted); color: var(--success); }
+  .tag-lang { background: var(--highlight-muted); color: var(--highlight); }
+  .tag-engine { background: var(--accent-light); color: var(--accent-muted); }
+  .copy-btn {
+    padding: 5px 12px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .copy-btn:hover { border-color: var(--highlight); color: var(--highlight); }
+  .result-text {
+    padding: 20px;
+    font-size: 14px;
+    line-height: 1.8;
+    color: var(--text);
+    white-space: pre-wrap;
+    max-height: 420px;
+    overflow-y: auto;
+    font-weight: 300;
+  }
+  .result-text::-webkit-scrollbar { width: 4px; }
+  .result-text::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 99px; }
+
+  /* Download grid */
+  .download-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border-top: 1px solid var(--border);
+  }
+  .dl-btn {
+    padding: 12px 8px;
+    background: var(--surface2);
+    border: none;
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    text-align: center;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .dl-btn:hover:not(:disabled) { background: var(--surface); color: var(--highlight); }
+  .dl-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .dl-btn .dl-fmt { display: block; font-size: 10px; color: var(--text-light); margin-top: 2px; font-weight: 400; }
+
+  /* Error */
+  .error-msg {
+    background: var(--danger-muted);
+    border: 1px solid #fca5a5;
+    border-radius: var(--radius-lg);
+    padding: 12px 16px;
+    color: var(--danger);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  /* Divider */
+  .divider { width: 100%; max-width: 720px; height: 1px; background: var(--border); margin-bottom: 24px; }
+
+  @media (max-width: 480px) {
+    .download-row { grid-template-columns: repeat(2, 1fr); }
+    .lang-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
+  }
 `;
 
 const LANGUAGES = [
-  { code: "FR",    label: "🇫🇷 French" },
-  { code: "ES",    label: "🇪🇸 Spanish" },
-  { code: "DE",    label: "🇩🇪 German" },
-  { code: "ZH",    label: "🇨🇳 Chinese" },
-  { code: "AR",    label: "🇸🇦 Arabic" },
-  { code: "PT-BR", label: "🇧🇷 Portuguese" },
-  { code: "JA",    label: "🇯🇵 Japanese" },
-  { code: "RU",    label: "🇷🇺 Russian" },
-  { code: "KO",    label: "🇰🇷 Korean" },
-  { code: "IT",    label: "🇮🇹 Italian" },
-  { code: "NL",    label: "🇳🇱 Dutch" },
-  { code: "PL",    label: "🇵🇱 Polish" },
-  { code: "SV",    label: "🇸🇪 Swedish" },
-  { code: "TR",    label: "🇹🇷 Turkish" },
+  { code: "FR",    label: "French" },
+  { code: "ES",    label: "Spanish" },
+  { code: "DE",    label: "German" },
+  { code: "ZH",    label: "Chinese" },
+  { code: "AR",    label: "Arabic" },
+  { code: "PT-BR", label: "Portuguese" },
+  { code: "JA",    label: "Japanese" },
+  { code: "RU",    label: "Russian" },
+  { code: "KO",    label: "Korean" },
+  { code: "IT",    label: "Italian" },
+  { code: "NL",    label: "Dutch" },
+  { code: "PL",    label: "Polish" },
+  { code: "SV",    label: "Swedish" },
+  { code: "TR",    label: "Turkish" },
 ];
 
+// Security constants
+const MAX_FILE_SIZE_MB = 10;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+const ALLOWED_EXTENSIONS = ["pdf", "docx", "txt"];
+const ALLOWED_MIME_TYPES = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "text/plain",
+];
 const CHUNK_SIZE = 4000;
+const MAX_TEXT_LENGTH = 500000; // 500k chars max per translation session
 const DEFAULT_URL = "https://translator-production-5690.up.railway.app";
+
+// Security: sanitize text to prevent XSS / injection before displaying
+function sanitizeText(str) {
+  if (typeof str !== "string") return "";
+  return str
+    .replace(/\0/g, "")           // remove null bytes
+    .replace(/[\x01-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "") // strip control chars
+    .slice(0, MAX_TEXT_LENGTH);
+}
+
+// Security: validate file before processing
+function validateFile(file) {
+  if (!file) return "No file selected.";
+  const ext = file.name.split(".").pop()?.toLowerCase();
+  if (!ALLOWED_EXTENSIONS.includes(ext))
+    return `File type .${ext} is not supported. Please upload a PDF, DOCX, or TXT file.`;
+  if (!ALLOWED_MIME_TYPES.includes(file.type) && file.type !== "")
+    return `MIME type "${file.type}" is not permitted.`;
+  if (file.size > MAX_FILE_SIZE_BYTES)
+    return `File size exceeds the ${MAX_FILE_SIZE_MB}MB limit.`;
+  if (file.size === 0)
+    return "The file is empty.";
+  return null;
+}
+
+// Security: validate backend URL
+function validateUrl(url) {
+  try {
+    const u = new URL(url);
+    if (!["https:", "http:"].includes(u.protocol)) return false;
+    if (u.hostname === "") return false;
+    return true;
+  } catch { return false; }
+}
 
 function getExt(name) { return (name.split(".").pop() || "").toLowerCase(); }
 
-// Load a script by URL and return a promise
 function loadScript(src, globalName) {
   return new Promise((resolve, reject) => {
     if (window[globalName]) return resolve(window[globalName]);
     const s = document.createElement("script");
     s.src = src;
     s.onload = () => resolve(window[globalName]);
-    s.onerror = () => reject(new Error(`Failed to load ${src}`));
+    s.onerror = () => reject(new Error(`Failed to load dependency: ${globalName}`));
     document.head.appendChild(s);
   });
 }
 
 function loadJSZip() { return loadScript("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js", "JSZip"); }
-function loadDocx() { return loadScript("https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.umd.min.js", "docx"); }
+function loadDocxLib() { return loadScript("https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.umd.min.js", "docx"); }
 function loadPptxGen() { return loadScript("https://cdnjs.cloudflare.com/ajax/libs/PptxGenJS/3.12.0/pptxgen.bundle.js", "PptxGenJS"); }
 function loadJsPDF() { return loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js", "jspdf"); }
+
 function loadPDFJS() {
   return new Promise((resolve, reject) => {
     if (window.pdfjsLib) return resolve(window.pdfjsLib);
@@ -134,7 +520,6 @@ function loadPDFJS() {
   });
 }
 
-// Extract text from PDF using PDF.js
 async function extractPdfText(file) {
   const pdfjsLib = await loadPDFJS();
   const arrayBuffer = await file.arrayBuffer();
@@ -145,21 +530,21 @@ async function extractPdfText(file) {
     const content = await page.getTextContent();
     pages.push(content.items.map(item => item.str).join(" "));
   }
-  return pages.join("\n\n");
+  return sanitizeText(pages.join("\n\n"));
 }
 
-// Extract text from DOCX using JSZip
 async function extractDocxText(file) {
   const JSZip = await loadJSZip();
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
   const xml = await zip.file("word/document.xml")?.async("string");
   if (!xml) throw new Error("Invalid DOCX file.");
-  return xml
+  const text = xml
     .replace(/<w:p[ >]/g, "\n<w:p ")
     .replace(/<[^>]+>/g, "")
     .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
     .replace(/&apos;/g, "'").replace(/&quot;/g, '"')
     .replace(/\n{3,}/g, "\n\n").trim();
+  return sanitizeText(text);
 }
 
 function chunkText(text, max) {
@@ -176,17 +561,31 @@ function chunkText(text, max) {
 }
 
 async function translateChunk(text, targetLang, backendUrl) {
-  const res = await fetch(`${backendUrl}/translate`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text: [text], target_lang: targetLang }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `Server error ${res.status}`);
-  return {
-    translatedText: data.translations[0].text,
-    detectedLang: data.translations[0].detected_source_language || null,
-  };
+  // Security: validate URL before each request
+  if (!validateUrl(backendUrl)) throw new Error("Invalid backend URL.");
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
+  try {
+    const res = await fetch(`${backendUrl}/translate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: [text], target_lang: targetLang }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `Server responded with ${res.status}`);
+    return {
+      translatedText: sanitizeText(data.translations[0].text),
+      detectedLang: data.translations[0].detected_source_language || null,
+    };
+  } catch (err) {
+    clearTimeout(timeout);
+    if (err.name === "AbortError") throw new Error("Request timed out. Please try again.");
+    throw err;
+  }
 }
 
 async function translateAll(text, targetLang, backendUrl, onProgress) {
@@ -194,7 +593,7 @@ async function translateAll(text, targetLang, backendUrl, onProgress) {
   const out = [];
   let detectedLang = null;
   for (let i = 0; i < chunks.length; i++) {
-    onProgress(`Translating… ${i + 1} / ${chunks.length}`, Math.round(25 + ((i + 1) / chunks.length) * 70));
+    onProgress(`Translating segment ${i + 1} of ${chunks.length}`, Math.round(25 + ((i + 1) / chunks.length) * 70));
     const { translatedText, detectedLang: dl } = await translateChunk(chunks[i], targetLang, backendUrl);
     out.push(translatedText);
     if (!detectedLang && dl) detectedLang = dl;
@@ -211,7 +610,7 @@ function downloadTxt(text, filename) {
 }
 
 async function downloadDocx(text, filename) {
-  const { Document, Packer, Paragraph, TextRun } = await loadDocx();
+  const { Document, Packer, Paragraph, TextRun } = await loadDocxLib();
   const paragraphs = text.split(/\n+/).map(p =>
     new Paragraph({ children: [new TextRun({ text: p, size: 24 })] })
   );
@@ -226,13 +625,15 @@ async function downloadDocx(text, filename) {
 async function downloadPdf(text, filename) {
   const { jsPDF } = await loadJsPDF();
   const doc = new jsPDF({ unit: "mm", format: "a4" });
-  const margin = 15, lineHeight = 7, pageHeight = 297 - margin * 2;
-  const lines = doc.splitTextToSize(text, 210 - margin * 2);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  const margin = 18, lineH = 6.5, maxW = 210 - margin * 2, maxY = 297 - margin;
+  const lines = doc.splitTextToSize(text, maxW);
   let y = margin;
   for (const line of lines) {
-    if (y + lineHeight > pageHeight + margin) { doc.addPage(); y = margin; }
+    if (y + lineH > maxY) { doc.addPage(); y = margin; }
     doc.text(line, margin, y);
-    y += lineHeight;
+    y += lineH;
   }
   doc.save(filename + ".pdf");
 }
@@ -240,21 +641,28 @@ async function downloadPdf(text, filename) {
 async function downloadPptx(text, filename) {
   const PptxGenJS = await loadPptxGen();
   const pptx = new PptxGenJS();
-  const paragraphs = text.split(/\n{2,}/);
+  pptx.layout = "LAYOUT_16x9";
+  const paragraphs = text.split(/\n{2,}/).filter(p => p.trim());
   for (let i = 0; i < paragraphs.length; i++) {
     const slide = pptx.addSlide();
+    slide.background = { color: "FFFFFF" };
     slide.addText(paragraphs[i].trim(), {
-      x: 0.5, y: 0.5, w: "90%", h: "85%",
-      fontSize: 16, color: "363636",
-      valign: "top", wrap: true,
+      x: 0.6, y: 0.6, w: "88%", h: "80%",
+      fontSize: 16, color: "1a1a1a",
+      fontFace: "Calibri", valign: "top", wrap: true,
     });
-    // Slide number
     slide.addText(`${i + 1} / ${paragraphs.length}`, {
-      x: 0.5, y: "92%", w: "90%", fontSize: 9, color: "999999", align: "right"
+      x: 0.5, y: "92%", w: "90%",
+      fontSize: 9, color: "aaaaaa", align: "right",
     });
   }
   await pptx.writeFile({ fileName: filename + ".pptx" });
 }
+
+// SVG icons (no emojis)
+const IconUpload = () => (
+  <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+);
 
 export default function App() {
   const [backendUrl, setBackendUrl] = useState(DEFAULT_URL);
@@ -268,6 +676,7 @@ export default function App() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [downloading, setDownloading] = useState(null);
+  const [copied, setCopied] = useState(false);
   const pingRef = useRef(null);
 
   useEffect(() => { loadJSZip().catch(() => {}); }, []);
@@ -276,60 +685,66 @@ export default function App() {
     setPingStatus("checking");
     clearTimeout(pingRef.current);
     pingRef.current = setTimeout(async () => {
+      if (!validateUrl(backendUrl.trim())) { setPingStatus("offline"); return; }
       try {
-        const r = await fetch(`${backendUrl.replace(/\/$/, "")}/health`, { signal: AbortSignal.timeout(3000) });
+        const r = await fetch(`${backendUrl.trim().replace(/\/$/, "")}/health`, {
+          signal: AbortSignal.timeout(4000)
+        });
         setPingStatus(r.ok ? "online" : "offline");
       } catch { setPingStatus("offline"); }
-    }, 600);
+    }, 700);
     return () => clearTimeout(pingRef.current);
   }, [backendUrl]);
 
-  const langLabel = LANGUAGES.find(l => l.code === lang)?.label.slice(2) || "French";
+  const langLabel = LANGUAGES.find(l => l.code === lang)?.label || "French";
 
   const handleFile = (f) => {
-    const ext = getExt(f.name);
-    if (!["pdf", "docx", "txt"].includes(ext)) {
-      setError("Please upload a PDF, DOCX, or TXT file."); return;
-    }
+    const validationError = validateFile(f);
+    if (validationError) { setError(validationError); return; }
     setFile(f); setResult(null); setError(null);
   };
 
   const translate = async () => {
-    if (!file) return;
-    setTranslating(true); setProgress(10); setStatusMsg("Reading document…"); setResult(null); setError(null);
+    if (!file || !validateUrl(backendUrl.trim())) return;
+    setTranslating(true); setProgress(10); setStatusMsg("Reading document..."); setResult(null); setError(null);
     try {
       const ext = getExt(file.name);
       let text = "";
+
       if (ext === "pdf") {
-        setProgress(15); setStatusMsg("Extracting PDF text…");
+        setProgress(15); setStatusMsg("Extracting text from PDF...");
         text = await extractPdfText(file);
-        if (!text?.trim()) throw new Error("Could not extract text from this PDF. It may be scanned/image-based.");
+        if (!text?.trim()) throw new Error("No readable text found. The PDF may be image-based or scanned.");
       } else if (ext === "docx") {
-        setProgress(15); setStatusMsg("Extracting DOCX text…");
+        setProgress(15); setStatusMsg("Extracting text from DOCX...");
         text = await extractDocxText(file);
-        if (!text?.trim()) throw new Error("Could not extract text from this DOCX.");
+        if (!text?.trim()) throw new Error("No readable text found in this document.");
       } else {
-        setProgress(15); setStatusMsg("Reading file…");
-        text = await file.text();
+        setProgress(15); setStatusMsg("Reading file...");
+        text = sanitizeText(await file.text());
         if (!text?.trim()) throw new Error("The file is empty.");
       }
 
-      const url = backendUrl.replace(/\/$/, "");
+      if (text.length > MAX_TEXT_LENGTH)
+        throw new Error(`Document exceeds the ${(MAX_TEXT_LENGTH / 1000).toFixed(0)}k character limit. Please use a shorter document.`);
+
+      const url = backendUrl.trim().replace(/\/$/, "");
       const { translatedText, detectedLang } = await translateAll(
         text, lang, url,
         (msg, pct) => { setStatusMsg(msg); setProgress(pct); }
       );
 
-      setProgress(100); setStatusMsg("Done!");
+      setProgress(100); setStatusMsg("Translation complete.");
       const baseName = file.name.replace(/\.[^.]+$/, "") + `_${langLabel.toLowerCase()}`;
       setResult({ text: translatedText, detectedLang, targetLang: langLabel, baseName });
     } catch (err) {
-      setError(err.message.includes("fetch") || err.message.includes("Failed")
-        ? "Could not reach backend. Is it running? Check the URL above."
-        : err.message);
+      const msg = err.message || "An unexpected error occurred.";
+      setError(msg.includes("fetch") || msg.includes("Failed to fetch")
+        ? "Unable to reach the translation backend. Verify the URL and ensure the server is running."
+        : msg);
     } finally {
       setTranslating(false);
-      setTimeout(() => { setProgress(0); setStatusMsg(""); }, 1500);
+      setTimeout(() => { setProgress(0); setStatusMsg(""); }, 2000);
     }
   };
 
@@ -342,129 +757,199 @@ export default function App() {
       else if (format === "pdf") await downloadPdf(result.text, result.baseName);
       else if (format === "pptx") await downloadPptx(result.text, result.baseName);
     } catch (e) {
-      setError(`Download failed: ${e.message}`);
+      setError(`Export failed: ${e.message}`);
     } finally {
       setDownloading(null);
     }
   };
 
-  const copy = () => result?.text && navigator.clipboard.writeText(result.text);
+  const copy = async () => {
+    if (!result?.text) return;
+    await navigator.clipboard.writeText(result.text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
-  const btnLabel = translating ? "Translating…"
-    : pingStatus === "offline" ? "⚠ Backend offline"
-    : pingStatus === "checking" ? "Checking backend…"
-    : `✦ Translate to ${langLabel}`;
+  const btnLabel = translating ? `Translating...`
+    : pingStatus === "offline" ? "Backend Unavailable"
+    : pingStatus === "checking" ? "Connecting..."
+    : `Translate to ${langLabel}`;
+
+  const statusColor = pingStatus === "online" ? "var(--success)"
+    : pingStatus === "offline" ? "var(--danger)"
+    : "var(--text-light)";
 
   return (
     <>
       <style>{STYLES}</style>
       <div className="app">
+
+        {/* Header */}
         <div className="header">
-          <span className="header-tag">Powered by DeepL · Free tier · 500k chars/month</span>
-          <h1>Document Translator</h1>
-          <p>Professional-grade translation via your own DeepL proxy.</p>
+          <div className="header-eyebrow">Document Translation System</div>
+          <h1>Translate Documents</h1>
+          <p>Upload a document and translate it with DeepL. Supports PDF, DOCX, and TXT.</p>
         </div>
 
-        <div className="backend-box">
-          <span className="blabel">Backend</span>
-          <input value={backendUrl} onChange={e => setBackendUrl(e.target.value)} placeholder="http://localhost:3001" spellCheck={false} />
-          <div className="status-chip">
-            <div className={`dot ${pingStatus}`} />
-            <span style={{color: pingStatus === "online" ? "var(--accent3)" : pingStatus === "offline" ? "var(--accent2)" : "var(--muted)"}}>
-              {pingStatus === "online" ? "Online" : pingStatus === "offline" ? "Offline" : "Checking…"}
-            </span>
+        {/* Backend */}
+        <div className="section">
+          <div className="section-header">
+            <span className="section-num">—</span>
+            <span className="section-title">Backend Connection</span>
+          </div>
+          <div className="backend-row">
+            <span className="backend-label">Server URL</span>
+            <input
+              className="backend-input"
+              value={backendUrl}
+              onChange={e => setBackendUrl(e.target.value)}
+              placeholder="https://your-backend.railway.app"
+              spellCheck={false}
+              autoComplete="off"
+            />
+            <div className="status-chip">
+              <div className={`status-dot ${pingStatus}`} />
+              <span style={{color: statusColor, fontSize: "11px", fontFamily: "var(--mono)"}}>
+                {pingStatus === "online" ? "Connected" : pingStatus === "offline" ? "Disconnected" : "Connecting..."}
+              </span>
+            </div>
+          </div>
+          {pingStatus === "offline" && (
+            <div className="notice" style={{marginTop:"8px"}}>
+              Backend is not reachable. Run <code>npm start</code> in your backend folder, or verify the deployed URL.
+            </div>
+          )}
+        </div>
+
+        <div className="divider" />
+
+        {/* Upload */}
+        <div className="section">
+          <div className="section-header">
+            <span className="section-num">01</span>
+            <span className="section-title">Upload Document</span>
+          </div>
+          <div
+            className={`upload-zone${dragOver ? " drag-over" : ""}`}
+            onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={e => {
+              e.preventDefault(); setDragOver(false);
+              const f = e.dataTransfer.files[0];
+              if (f) handleFile(f);
+            }}
+          >
+            <div className="upload-zone-icon"><IconUpload /></div>
+            <h3>Drop a file here or click to browse</h3>
+            <p>PDF · DOCX · TXT — Max {MAX_FILE_SIZE_MB}MB</p>
+            <label className="upload-btn">
+              Select File
+              <input
+                type="file"
+                accept=".pdf,.docx,.txt"
+                onChange={e => { if (e.target.files[0]) handleFile(e.target.files[0]); }}
+              />
+            </label>
+          </div>
+          {file && (
+            <div className="file-badge">
+              <span className="file-ext">{getExt(file.name).toUpperCase()}</span>
+              <span className="file-name">{file.name}</span>
+              <span style={{fontFamily:"var(--mono)", fontSize:"11px", color:"var(--text-light)", marginLeft:"auto", marginRight:"8px"}}>
+                {(file.size / 1024).toFixed(0)} KB
+              </span>
+              <button className="file-rm" onClick={() => { setFile(null); setResult(null); setError(null); }}>×</button>
+            </div>
+          )}
+        </div>
+
+        {/* Language */}
+        <div className="section">
+          <div className="section-header">
+            <span className="section-num">02</span>
+            <span className="section-title">Target Language</span>
+          </div>
+          <div className="lang-grid">
+            {LANGUAGES.map(l => (
+              <button
+                key={l.code}
+                className={`lang-btn${lang === l.code ? " selected" : ""}`}
+                onClick={() => setLang(l.code)}
+              >
+                {l.label}
+              </button>
+            ))}
           </div>
         </div>
 
-        {pingStatus === "offline" && (
-          <div style={{width:"100%", maxWidth:"760px"}}>
-            <div className="hint-box">
-              <strong>Backend not running.</strong> Start it with:<br/>
-              <code>cd proj_01 &amp;&amp; npm start</code>
-            </div>
+        {/* Translate */}
+        <div className="section">
+          <button
+            className="translate-btn"
+            disabled={!file || translating || pingStatus !== "online"}
+            onClick={translate}
+          >
+            {btnLabel}
+          </button>
+          {translating && (
+            <>
+              <div className="progress-track">
+                <div className="progress-fill" style={{width:`${progress}%`}} />
+              </div>
+              <div className="progress-label">{statusMsg}</div>
+            </>
+          )}
+        </div>
+
+        {error && (
+          <div className="section">
+            <div className="error-msg">{error}</div>
           </div>
         )}
 
-        <div className="card">
-          <div className="card-section">
-            <div className="section-label">01 — Upload Document</div>
-            <div
-              className={`upload-box${dragOver ? " drag-over" : ""}`}
-              onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
-            >
-              <span className="upload-icon">📄</span>
-              <h3>Choose a document to translate</h3>
-              <p className="hint">PDF · DOCX · TXT</p>
-              <label className="file-pick-label">
-                📂 Browse Files
-                <input type="file" accept=".pdf,.docx,.txt" onChange={e => { if (e.target.files[0]) handleFile(e.target.files[0]); }} />
-              </label>
+        {/* Result */}
+        {result && (
+          <div className="section">
+            <div className="section-header">
+              <span className="section-num">03</span>
+              <span className="section-title">Translation Result</span>
             </div>
-            {file && (
-              <div className="file-badge">
-                <span className="ext">{getExt(file.name).toUpperCase()}</span>
-                <span>{file.name}</span>
-                <button className="rm" onClick={() => { setFile(null); setResult(null); setError(null); }}>×</button>
-              </div>
-            )}
-          </div>
-
-          <div className="card-section">
-            <div className="section-label">02 — Target Language</div>
-            <div className="lang-grid">
-              {LANGUAGES.map(l => (
-                <button key={l.code} className={`lang-btn${lang === l.code ? " selected" : ""}`} onClick={() => setLang(l.code)}>
-                  {l.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="card-section">
-            <button className="translate-btn" disabled={!file || translating || pingStatus !== "online"} onClick={translate}>
-              {btnLabel}
-            </button>
-            {translating && (
-              <>
-                <div className="progress-wrap"><div className="progress-bar" style={{width:`${progress}%`}} /></div>
-                <div className="status-txt">{statusMsg}</div>
-              </>
-            )}
-          </div>
-
-          {error && <div className="card-section"><div className="error-box">⚠ {error}</div></div>}
-
-          {result && (
-            <div className="card-section">
-              <div className="result-header">
+            <div className="result-block">
+              <div className="result-toolbar">
                 <div className="result-meta">
-                  {result.detectedLang && <span className="badge badge-det">Detected: {result.detectedLang}</span>}
-                  <span className="badge badge-lang">→ {result.targetLang}</span>
-                  <span className="badge badge-deepl">⚡ DeepL</span>
+                  {result.detectedLang && (
+                    <span className="tag tag-detected">Source: {result.detectedLang}</span>
+                  )}
+                  <span className="tag tag-lang">Target: {result.targetLang}</span>
+                  <span className="tag tag-engine">DeepL</span>
                 </div>
-                <button className="action-btn" onClick={copy}>Copy</button>
+                <button className="copy-btn" onClick={copy}>
+                  {copied ? "Copied" : "Copy"}
+                </button>
               </div>
-
-              <div className="result-box">{result.text}</div>
-
-              <div className="download-grid" style={{marginTop:"16px"}}>
+              <div className="result-text">{result.text}</div>
+              <div className="download-row">
                 {[
-                  { fmt: "txt",  icon: "📄", label: "TXT" },
-                  { fmt: "docx", icon: "📝", label: "DOCX" },
-                  { fmt: "pdf",  icon: "📕", label: "PDF" },
-                  { fmt: "pptx", icon: "📊", label: "PPTX" },
-                ].map(({ fmt, icon, label }) => (
-                  <button key={fmt} className="dl-btn" onClick={() => handleDownload(fmt)} disabled={!!downloading}>
-                    <span className="dl-icon">{downloading === fmt ? "⏳" : icon}</span>
-                    <span className="dl-label">{downloading === fmt ? "Saving…" : `↓ ${label}`}</span>
+                  { fmt: "txt",  label: "TXT",  sub: "Plain text" },
+                  { fmt: "docx", label: "DOCX", sub: "Word document" },
+                  { fmt: "pdf",  label: "PDF",  sub: "Portable" },
+                  { fmt: "pptx", label: "PPTX", sub: "Presentation" },
+                ].map(({ fmt, label, sub }) => (
+                  <button
+                    key={fmt}
+                    className="dl-btn"
+                    onClick={() => handleDownload(fmt)}
+                    disabled={!!downloading}
+                  >
+                    {downloading === fmt ? "Saving..." : `Download ${label}`}
+                    <span className="dl-fmt">{downloading === fmt ? "please wait" : sub}</span>
                   </button>
                 ))}
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
       </div>
     </>
   );
