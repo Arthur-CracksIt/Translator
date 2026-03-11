@@ -458,7 +458,8 @@ function sanitizeText(str) {
   if (typeof str !== "string") return "";
   return str
     .replace(/\0/g, "")           // remove null bytes
-    .replace(/[\x01-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "") // strip control chars
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\x01-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "")
     .slice(0, MAX_TEXT_LENGTH);
 }
 
