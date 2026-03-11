@@ -99,7 +99,7 @@ const LANGUAGES = [
 ];
 
 const CHUNK_SIZE = 4000;
-const DEFAULT_URL = "http://localhost:3001";
+const DEFAULT_URL = "translator-production-5690.up.railway.app";
 
 function getExt(name) { return (name.split(".").pop() || "").toLowerCase(); }
 
