@@ -674,8 +674,8 @@ async function downloadDocx(translatedText, filename, originalFile, originalExt)
   const { Document, Packer, Paragraph, TextRun } = await loadDocxLib();
   const paraList = translatedText.split(/\n+/).map(p =>
   new Paragraph({ children: [new TextRun({ text: p, size: 24 })] })
-);
-const doc = new Document({ sections: [{ properties: {}, children: paraList }] });
+  );
+  const doc = new Document({ sections: [{ properties: {}, children: paraList }] });
   const blob = await Packer.toBlob(doc);
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
