@@ -628,7 +628,7 @@ async function downloadDocx(translatedText, filename, originalFile, originalExt)
   // If original was DOCX, preserve structure by injecting translated paragraphs back into the XML
   if (originalExt === "docx" && originalFile) {
     try {
-      const { paragraphs, zip, originalXml } = await extractDocxData(originalFile);
+      const {zip, originalXml } = await extractDocxData(originalFile);
 
       // Split translated text back into paragraphs (same count ideally)
       const translatedParas = translatedText.split(/\n+/);
