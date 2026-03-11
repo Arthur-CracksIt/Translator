@@ -424,6 +424,8 @@ const STYLES = `
 `;
 
 const LANGUAGES = [
+  { code: "EN-US",    label: "English" },
+  { code: "EN-GB",    label: "English (UK)" },
   { code: "FR",    label: "French" },
   { code: "ES",    label: "Spanish" },
   { code: "DE",    label: "German" },
