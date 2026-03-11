@@ -458,7 +458,8 @@ function sanitizeText(str) {
   if (typeof str !== "string") return "";
   return str
     .replace(/\0/g, "")           // remove null bytes
-    .replace(/[\x01-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "") // strip control chars
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\x01-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "")
     .slice(0, MAX_TEXT_LENGTH);
 }
 
@@ -671,10 +672,10 @@ async function downloadDocx(translatedText, filename, originalFile, originalExt)
 
   // Fallback: plain DOCX from translated text
   const { Document, Packer, Paragraph, TextRun } = await loadDocxLib();
-  const paragraphs = translatedText.split(/\n+/).map(p =>
-    new Paragraph({ children: [new TextRun({ text: p, size: 24 })] })
-  );
-  const doc = new Document({ sections: [{ properties: {}, children: paragraphs }] });
+  const paraList = translatedText.split(/\n+/).map(p =>
+  new Paragraph({ children: [new TextRun({ text: p, size: 24 })] })
+);
+const doc = new Document({ sections: [{ properties: {}, children: paraList }] });
   const blob = await Packer.toBlob(doc);
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
