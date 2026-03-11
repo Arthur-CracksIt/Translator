@@ -450,7 +450,7 @@ const ALLOWED_MIME_TYPES = [
   "text/plain",
 ];
 const CHUNK_SIZE = 4000;
-const MAX_TEXT_LENGTH = 500000; // 500k chars max per translation session
+const MAX_TEXT_LENGTH = 500000; // 500k chars 
 const DEFAULT_URL = "https://translator-production-5690.up.railway.app";
 
 // Security: sanitize text to prevent XSS / injection before displaying
