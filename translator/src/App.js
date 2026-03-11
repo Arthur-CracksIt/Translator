@@ -450,7 +450,7 @@ const ALLOWED_MIME_TYPES = [
   "text/plain",
 ];
 const CHUNK_SIZE = 4000;
-const MAX_TEXT_LENGTH = 500000; // 500k chars 
+const MAX_TEXT_LENGTH = 500000; // 500k chars max per translation session
 const DEFAULT_URL = "https://translator-production-5690.up.railway.app";
 
 // Security: sanitize text to prevent XSS / injection before displaying
@@ -458,8 +458,7 @@ function sanitizeText(str) {
   if (typeof str !== "string") return "";
   return str
     .replace(/\0/g, "")           // remove null bytes
-    // eslint-disable-next-line no-control-regex
-    .replace(/[\x01-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "")
+    .replace(/[\x01-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "") // strip control chars
     .slice(0, MAX_TEXT_LENGTH);
 }
 
@@ -502,8 +501,7 @@ function loadScript(src, globalName) {
 }
 
 function loadJSZip() { return loadScript("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js", "JSZip"); }
-function loadDocxLib() { return loadScript("https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.umd.min.js", "docx"); }
-function loadPptxGen() { return loadScript("https://cdnjs.cloudflare.com/ajax/libs/PptxGenJS/3.12.0/pptxgen.bundle.js", "PptxGenJS"); }
+function loadDocxLib() { return loadScript("https://unpkg.com/docx@8.5.0/build/index.umd.js", "docx"); }
 function loadJsPDF() { return loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js", "jspdf"); }
 
 function loadPDFJS() {
@@ -534,18 +532,33 @@ async function extractPdfText(file) {
   return sanitizeText(pages.join("\n\n"));
 }
 
-async function extractDocxText(file) {
+async function extractDocxData(file) {
   const JSZip = await loadJSZip();
-  const zip = await JSZip.loadAsync(await file.arrayBuffer());
+  const zipData = await file.arrayBuffer();
+  const zip = await JSZip.loadAsync(zipData);
   const xml = await zip.file("word/document.xml")?.async("string");
   if (!xml) throw new Error("Invalid DOCX file.");
-  const text = xml
-    .replace(/<w:p[ >]/g, "\n<w:p ")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-    .replace(/&apos;/g, "'").replace(/&quot;/g, '"')
-    .replace(/\n{3,}/g, "\n\n").trim();
-  return sanitizeText(text);
+
+  // Extract paragraphs with their text, preserving order
+  const paraMatches = [...xml.matchAll(/<w:p[ >][\s\S]*?<\/w:p>/g)];
+  const paragraphs = paraMatches.map(m => {
+    const paraXml = m[0];
+    const text = paraXml
+      .replace(/<[^>]+>/g, "")
+      .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+      .replace(/&apos;/g, "'").replace(/&quot;/g, '"')
+      .trim();
+    return { xml: paraXml, text };
+  });
+
+  const plainText = sanitizeText(paragraphs.map(p => p.text).join("\n"));
+  return { plainText, paragraphs, zip, originalXml: xml };
+}
+
+// Keep a simple text-only extractor for the translate pipeline
+async function extractDocxText(file) {
+  const data = await extractDocxData(file);
+  return data.plainText;
 }
 
 function chunkText(text, max) {
@@ -610,9 +623,55 @@ function downloadTxt(text, filename) {
   a.click();
 }
 
-async function downloadDocx(text, filename) {
+async function downloadDocx(translatedText, filename, originalFile, originalExt) {
+  // If original was DOCX, preserve structure by injecting translated paragraphs back into the XML
+  if (originalExt === "docx" && originalFile) {
+    try {
+      const { paragraphs, zip, originalXml } = await extractDocxData(originalFile);
+
+      // Split translated text back into paragraphs (same count ideally)
+      const translatedParas = translatedText.split(/\n+/);
+
+      // Build a map: for each original paragraph that had text, replace its w:t content
+      let paraIndex = 0;
+      let newXml = originalXml.replace(/<w:p[ >][\s\S]*?<\/w:p>/g, (match) => {
+        const hasText = match.replace(/<[^>]+>/g, "").trim().length > 0;
+        if (!hasText) return match; // keep empty/structural paragraphs as-is
+
+        const translated = translatedParas[paraIndex] ?? "";
+        paraIndex++;
+
+        // Escape the translated text for XML
+        const escaped = translated
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+
+        // Preserve paragraph properties (pPr = formatting like heading style, alignment)
+        const pPrMatch = match.match(/<w:pPr>[\s\S]*?<\/w:pPr>/);
+        const pPr = pPrMatch ? pPrMatch[0] : "";
+
+        // Preserve run properties from first run (bold, italic, font size etc.)
+        const rPrMatch = match.match(/<w:rPr>[\s\S]*?<\/w:rPr>/);
+        const rPr = rPrMatch ? rPrMatch[0] : "";
+
+        return `<w:p><w:pPr>${pPr ? pPr.replace(/^<w:pPr>|<\/w:pPr>$/g, "") : ""}</w:pPr><w:r>${rPr}<w:t xml:space="preserve">${escaped}</w:t></w:r></w:p>`;
+      });
+
+      zip.file("word/document.xml", newXml);
+      const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = filename + ".docx";
+      a.click();
+      return;
+    } catch (e) {
+      // Fall through to plain docx if structure preservation fails
+    }
+  }
+
+  // Fallback: plain DOCX from translated text
   const { Document, Packer, Paragraph, TextRun } = await loadDocxLib();
-  const paragraphs = text.split(/\n+/).map(p =>
+  const paragraphs = translatedText.split(/\n+/).map(p =>
     new Paragraph({ children: [new TextRun({ text: p, size: 24 })] })
   );
   const doc = new Document({ sections: [{ properties: {}, children: paragraphs }] });
@@ -640,24 +699,118 @@ async function downloadPdf(text, filename) {
 }
 
 async function downloadPptx(text, filename) {
-  const PptxGenJS = await loadPptxGen();
-  const pptx = new PptxGenJS();
-  pptx.layout = "LAYOUT_16x9";
+  const JSZip = await loadJSZip();
   const paragraphs = text.split(/\n{2,}/).filter(p => p.trim());
-  for (let i = 0; i < paragraphs.length; i++) {
-    const slide = pptx.addSlide();
-    slide.background = { color: "FFFFFF" };
-    slide.addText(paragraphs[i].trim(), {
-      x: 0.6, y: 0.6, w: "88%", h: "80%",
-      fontSize: 16, color: "1a1a1a",
-      fontFace: "Calibri", valign: "top", wrap: true,
-    });
-    slide.addText(`${i + 1} / ${paragraphs.length}`, {
-      x: 0.5, y: "92%", w: "90%",
-      fontSize: 9, color: "aaaaaa", align: "right",
-    });
+  const zip = new JSZip();
+
+  // [Content_Types].xml
+  zip.file("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>
+  <Override PartName="/ppt/slideLayouts/slideLayout1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/>
+  <Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/>
+  ${paragraphs.map((_, i) => `<Override PartName="/ppt/slides/slide${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>`).join("\n  ")}
+</Types>`);
+
+  // _rels/.rels
+  zip.folder("_rels").file(".rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>`);
+
+  const ppt = zip.folder("ppt");
+  const slides = ppt.folder("slides");
+  const slidesRels = slides.folder("_rels");
+  const slideLayouts = ppt.folder("slideLayouts");
+  const slideLayoutsRels = slideLayouts.folder("_rels");
+  const slideMasters = ppt.folder("slideMasters");
+  const slideMastersRels = slideMasters.folder("_rels");
+
+  // Slide master (minimal)
+  slideMasters.file("slideMaster1.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sldMaster xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld>
+  <p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/>
+  <p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst>
+</p:sldMaster>`);
+  slideMastersRels.file("slideMaster1.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>
+</Relationships>`);
+
+  // Slide layout (minimal)
+  slideLayouts.file("slideLayout1.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sldLayout xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" type="blank">
+  <p:cSld name="Blank"><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld>
+</p:sldLayout>`);
+  slideLayoutsRels.file("slideLayout1.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml"/>
+</Relationships>`);
+
+  // presentation.xml
+  const slideIdList = paragraphs.map((_, i) => `<p:sldId id="${256 + i}" r:id="rId${i+1}"/>`).join("\n    ");
+  const slideRels = paragraphs.map((_, i) => `<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide${i+1}.xml"/>`).join("\n  ");
+  ppt.file("presentation.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" saveSubsetFonts="1">
+  <p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId${paragraphs.length + 1}"/></p:sldMasterIdLst>
+  <p:sldIdLst>${slideIdList}</p:sldIdLst>
+  <p:sldSz cx="9144000" cy="5143500"/>
+  <p:notesSz cx="6858000" cy="9144000"/>
+</p:presentation>`);
+  ppt.folder("_rels").file("presentation.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  ${slideRels}
+  <Relationship Id="rId${paragraphs.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster1.xml"/>
+</Relationships>`);
+
+  // Individual slides
+  function escapeXml(s) {
+    return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&apos;");
   }
-  await pptx.writeFile({ fileName: filename + ".pptx" });
+
+  paragraphs.forEach((para, i) => {
+    const lines = escapeXml(para.trim()).split("\n");
+    const runs = lines.map(l => `<a:r><a:rPr lang="en-US" sz="1600" b="0"/><a:t>${l} </a:t></a:r><a:br/>`).join("");
+    const pageNum = `${i+1} / ${paragraphs.length}`;
+
+    slides.file(`slide${i+1}.xml`, `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Content"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr>
+      <p:spPr><a:xfrm><a:off x="457200" y="457200"/><a:ext cx="8229600" cy="4114800"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr>
+      <p:txBody><a:bodyPr wrap="square" lIns="91440" rIns="91440" tIns="91440" bIns="91440"><a:normAutofit/></a:bodyPr><a:lstStyle/>
+        <a:p>${runs}</a:p>
+      </p:txBody>
+    </p:sp>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="3" name="PageNum"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr>
+      <p:spPr><a:xfrm><a:off x="457200" y="4800600"/><a:ext cx="8229600" cy="342900"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/>
+        <a:p><a:pPr algn="r"/><a:r><a:rPr lang="en-US" sz="900" b="0"><a:solidFill><a:srgbClr val="aaaaaa"/></a:solidFill></a:rPr><a:t>${escapeXml(pageNum)}</a:t></a:r></a:p>
+      </p:txBody>
+    </p:sp>
+  </p:spTree></p:cSld>
+</p:sld>`);
+
+    slidesRels.file(`slide${i+1}.xml.rels`, `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>
+</Relationships>`);
+  });
+
+  const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename + ".pptx";
+  a.click();
 }
 
 // SVG icons (no emojis)
@@ -666,7 +819,6 @@ const IconUpload = () => (
 );
 
 export default function App() {
-  const [backendUrl, setBackendUrl] = useState(DEFAULT_URL);
   const [pingStatus, setPingStatus] = useState("checking");
   const [file, setFile] = useState(null);
   const [dragOver, setDragOver] = useState(false);
@@ -686,16 +838,13 @@ export default function App() {
     setPingStatus("checking");
     clearTimeout(pingRef.current);
     pingRef.current = setTimeout(async () => {
-      if (!validateUrl(backendUrl.trim())) { setPingStatus("offline"); return; }
       try {
-        const r = await fetch(`${backendUrl.trim().replace(/\/$/, "")}/health`, {
-          signal: AbortSignal.timeout(4000)
-        });
+        const r = await fetch(`${DEFAULT_URL}/health`, { signal: AbortSignal.timeout(4000) });
         setPingStatus(r.ok ? "online" : "offline");
       } catch { setPingStatus("offline"); }
     }, 700);
     return () => clearTimeout(pingRef.current);
-  }, [backendUrl]);
+  }, []);
 
   const langLabel = LANGUAGES.find(l => l.code === lang)?.label || "French";
 
@@ -706,7 +855,7 @@ export default function App() {
   };
 
   const translate = async () => {
-    if (!file || !validateUrl(backendUrl.trim())) return;
+    if (!file) return;
     setTranslating(true); setProgress(10); setStatusMsg("Reading document..."); setResult(null); setError(null);
     try {
       const ext = getExt(file.name);
@@ -729,15 +878,14 @@ export default function App() {
       if (text.length > MAX_TEXT_LENGTH)
         throw new Error(`Document exceeds the ${(MAX_TEXT_LENGTH / 1000).toFixed(0)}k character limit. Please use a shorter document.`);
 
-      const url = backendUrl.trim().replace(/\/$/, "");
       const { translatedText, detectedLang } = await translateAll(
-        text, lang, url,
+        text, lang, DEFAULT_URL,
         (msg, pct) => { setStatusMsg(msg); setProgress(pct); }
       );
 
       setProgress(100); setStatusMsg("Translation complete.");
       const baseName = file.name.replace(/\.[^.]+$/, "") + `_${langLabel.toLowerCase()}`;
-      setResult({ text: translatedText, detectedLang, targetLang: langLabel, baseName });
+      setResult({ text: translatedText, detectedLang, targetLang: langLabel, baseName, originalFile: file, originalExt: ext });
     } catch (err) {
       const msg = err.message || "An unexpected error occurred.";
       setError(msg.includes("fetch") || msg.includes("Failed to fetch")
@@ -754,7 +902,7 @@ export default function App() {
     setDownloading(format);
     try {
       if (format === "txt") downloadTxt(result.text, result.baseName);
-      else if (format === "docx") await downloadDocx(result.text, result.baseName);
+      else if (format === "docx") await downloadDocx(result.text, result.baseName, result.originalFile, result.originalExt);
       else if (format === "pdf") await downloadPdf(result.text, result.baseName);
       else if (format === "pptx") await downloadPptx(result.text, result.baseName);
     } catch (e) {
@@ -776,10 +924,6 @@ export default function App() {
     : pingStatus === "checking" ? "Connecting..."
     : `Translate to ${langLabel}`;
 
-  const statusColor = pingStatus === "online" ? "var(--success)"
-    : pingStatus === "offline" ? "var(--danger)"
-    : "var(--text-light)";
-
   return (
     <>
       <style>{STYLES}</style>
@@ -787,42 +931,18 @@ export default function App() {
 
         {/* Header */}
         <div className="header">
-          <div className="header-eyebrow">Document Translation System</div>
+          <div className="header-eyebrow">
+            Document Translation System
+            <span style={{marginLeft:"12px", display:"inline-flex", alignItems:"center", gap:"5px"}}>
+              <span className={`status-dot ${pingStatus}`} style={{display:"inline-block"}} />
+              <span style={{fontSize:"10px", color: pingStatus === "online" ? "var(--success)" : pingStatus === "offline" ? "var(--danger)" : "var(--text-light)"}}>
+                {pingStatus === "online" ? "Service online" : pingStatus === "offline" ? "Service unavailable" : "Connecting..."}
+              </span>
+            </span>
+          </div>
           <h1>Translate Documents</h1>
           <p>Upload a document and translate it with DeepL. Supports PDF, DOCX, and TXT.</p>
         </div>
-
-        {/* Backend */}
-        <div className="section">
-          <div className="section-header">
-            <span className="section-num">—</span>
-            <span className="section-title">Backend Connection</span>
-          </div>
-          <div className="backend-row">
-            <span className="backend-label">Server URL</span>
-            <input
-              className="backend-input"
-              value={backendUrl}
-              onChange={e => setBackendUrl(e.target.value)}
-              placeholder="https://your-backend.railway.app"
-              spellCheck={false}
-              autoComplete="off"
-            />
-            <div className="status-chip">
-              <div className={`status-dot ${pingStatus}`} />
-              <span style={{color: statusColor, fontSize: "11px", fontFamily: "var(--mono)"}}>
-                {pingStatus === "online" ? "Connected" : pingStatus === "offline" ? "Disconnected" : "Connecting..."}
-              </span>
-            </div>
-          </div>
-          {pingStatus === "offline" && (
-            <div className="notice" style={{marginTop:"8px"}}>
-              Backend is not reachable. Run <code>npm start</code> in your backend folder, or verify the deployed URL.
-            </div>
-          )}
-        </div>
-
-        <div className="divider" />
 
         {/* Upload */}
         <div className="section">
